@@ -20,9 +20,10 @@ class QuizBot
 
   # Fetch questions from OpenAI
   def fetch_questions(topic, bot, chat_id)
+    question_count = 10
     puts "Fetching questions for topic: #{topic}"
     prompt = <<-PROMPT
-Generate a list of 10 multiple-choice quiz questions in XML format in Russian about the topic: "#{topic}". The XML should follow this structure:
+Generate a list of #{question_count} multiple-choice quiz questions in XML format in Russian about the topic: "#{topic}". The XML should follow this structure:
 <questions>
   <question>
     <title>Текст вопроса здесь</title>
@@ -168,10 +169,14 @@ Telegram::Bot::Client.run(TELEGRAM_BOT_TOKEN) do |bot|
           quizzes[chat_id] = QuizBot.new  # Reset quiz
         else
           bot.api.send_message(chat_id: chat_id, text: "Викторина по теме '#{topic}' готова! Нажмите 'Начать', чтобы начать.")
+
           bot.api.send_message(
             chat_id: chat_id,
             text: "Начать",
-            reply_markup: Telegram::Bot::Types::ReplyKeyboardMarkup.new(keyboard: [["Начать"]], resize_keyboard: true)
+            reply_markup: Telegram::Bot::Types::ReplyKeyboardMarkup.new(
+              keyboard: [[{ text: "Начать" }]],
+              resize_keyboard: true
+            )
           )
         end
       else
@@ -180,7 +185,7 @@ Telegram::Bot::Client.run(TELEGRAM_BOT_TOKEN) do |bot|
           if quiz.current_question < quiz.questions.size
             question_text = quiz.current_question_text
             buttons = quiz.questions[quiz.current_question][:answers].map do |a|
-              [a[:letter]]
+                [{ text: a[:letter] }]  # Now each button is a hash with a 'text' key
             end
             puts "Sending question #{quiz.current_question + 1} to user #{chat_id}"
             bot.api.send_message(
@@ -200,14 +205,18 @@ Telegram::Bot::Client.run(TELEGRAM_BOT_TOKEN) do |bot|
           bot.api.send_message(chat_id: chat_id, text: response)
           quiz.current_question += 1
           if quiz.current_question < quiz.questions.size
-            bot.api.send_message(
-              chat_id: chat_id,
-              text: "Нажмите 'Дальше' для следующего вопроса.",
-              reply_markup: Telegram::Bot::Types::ReplyKeyboardMarkup.new(keyboard: [["Дальше"]], resize_keyboard: true)
-            )
+              bot.api.send_message(
+                chat_id: chat_id,
+                text: "Нажмите 'Дальше' для следующего вопроса.",
+                reply_markup: Telegram::Bot::Types::ReplyKeyboardMarkup.new(
+                  keyboard: [[{ text: "Дальше" }]],
+                  resize_keyboard: true
+                )
+              )
           else
             puts "Quiz completed for user #{chat_id}. Score: #{quiz.score}/#{quiz.questions.size}"
-            bot.api.send_message(chat_id: chat_id, text: "Викторина завершена! Ваш результат: #{quiz.score} из #{quiz.questions.size}.")
+            bot.api.send_message(chat_id: chat_id, text: "Викторина завершена! Ваш результат: #{quiz.score} из #{quiz.questions.size}.", reply_markup: Telegram::Bot::Types::ReplyKeyboardRemove.new(remove_keyboard: true))
+            bot.api.send_message(chat_id: chat_id, text: "Нажмите '/start', чтобы начать новую викторину.")
             quizzes.delete(chat_id)  # Reset quiz
           end
         end
